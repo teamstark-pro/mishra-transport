@@ -13,10 +13,12 @@
 # production
 /build
 
-# environment (never commit secrets — set these on Vercel/Netlify/Render dashboards)
+# environment (real secrets never committed)
 .env
+.env.local
 .env.*
 !.env.example
+!.env.local.example
 
 # vercel / netlify
 .vercel
@@ -32,7 +34,7 @@ backend/__pycache__
 backend/**/__pycache__
 backend/requests
 
-# local static export drop folders (build once, drag separately to Vercel / Netlify)
+# local static export drop folders (build locally, drag separately)
 out-vercel/
 out-netlify/
 

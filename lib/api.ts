@@ -1,11 +1,14 @@
 /**
- * Vehicle API client.
- * Local test: NEXT_PUBLIC_VEHICLE_API=http://localhost:5001
- * Production (Render): NEXT_PUBLIC_VEHICLE_API=https://your-api.onrender.com
- * Falls back to localhost:5001 during development.
+ * URL of the backend API the frontend calls.
+ *
+ * Local dev: set NEXT_PUBLIC_VEHICLE_API in .env.local.
+ * Vercel/Netlify: set NEXT_PUBLIC_VEHICLE_API as a platform environment
+ * variable and redeploy — the buildtime value is what gets baked into out/.
+ * Fallback is localhost for local-only use.
  */
 export const VEHICLE_API =
   process.env.NEXT_PUBLIC_VEHICLE_API || "http://localhost:5001";
+
 
 export type VehicleLookup = {
   code: number;
