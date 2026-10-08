@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Fully static export — deployable by drag-and-drop (Vercel Drop, Netlify, any host)
+  output: "export",
+  trailingSlash: true,
+  /* disabled for export mode: cacheComponents, partialPrefetching */
   turbopack: {
     rules: {
       "*.css": {

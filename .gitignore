@@ -1,14 +1,7 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
 # testing
 /coverage
@@ -20,22 +13,29 @@
 # production
 /build
 
-# misc
-.DS_Store
-*.pem
+# environment (never commit secrets — set these on Vercel/Netlify/Render dashboards)
+.env
+.env.*
+!.env.example
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
+# vercel / netlify
 .vercel
+.netlify
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backend — never commit a Python virtualenv or its cache
+backend/venv
+backend/__pycache__
+backend/**/__pycache__
+backend/requests
+
+# local static export drop folders (build once, drag separately to Vercel / Netlify)
+out-vercel/
+out-netlify/
+
+# misc
+.DS_Store
+*.pem

@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Surfaces: clean, light, airy — purposeful contrast */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-ink: #0B1220;
+  --color-ink-soft: #5B677D;
+  --color-line: #E4E9F2;
+  --color-line-strong: #C9D2E3;
+
+  /* Single accent — CTAs + selected UI only */
+  --color-accent: #0B5394;
+  --color-accent-soft: #DCE7F5;
+
+  /* Functional status colors (data semantics, not decoration) */
+  --color-status-danger: #B3261E;
+  --color-status-warn: #9A4A07;
+  --color-status-ok: #1F3A5F;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Hard 3-tier scale, tracked tight on headings */
+.display {
+  font-size: clamp(2.75rem, 6vw, 4.25rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.h2 {
+  font-size: clamp(1.85rem, 3.5vw, 2.4rem);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+}
+
+.body {
+  font-size: 1rem;
+  line-height: 1.7;
+  font-weight: 400;
+  color: var(--color-ink);
+}
+
+/* Micro-label: caps, wide tracking — the only place tracking opens up */
+.label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* subtle surface tint for panels */
+.card-soft {
+  background: color-mix(in srgb, var(--color-bg) 70%, white);
 }
