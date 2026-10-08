@@ -55,15 +55,32 @@ The backend listens on `PORT` (Render sets this). Default listens on `0.0.0.0:$P
    - `MONGODB_URI` = your MongoDB Atlas connection string (optional). When set, vehicle data lives in MongoDB. When not set, the backend uses the local `/tmp` cache.
 4. Deploy.
 
-### Frontend → Vercel or Netlify (drag-and-drop)
+### Frontend → Vercel (drag-and-drop)
 
 1. Run `npm run build` locally. This creates `out/`.
-2. Drag the `out/` folder onto:
-   - Vercel: https://vercel.com/drop
-   - Netlify: https://app.netlify.com/drop
-3. If you want the frontend to talk to the Render backend, set the environment variable on that platform’s dashboard before dropping, or build with `NEXT_PUBLIC_VEHICLE_API` pointing at the Render backend URL.
+2. Drag the `out/` folder onto https://vercel.com/drop.
+3. In the Vercel project dashboard, add this Environment Variable **before** the first deploy or redeploy:
+   - `NEXT_PUBLIC_VEHICLE_API = https://<your-render-backend-url>` (for example `https://mishra-transport-backend.onrender.com`).
+4. Redeploy / the site restarts with that variable.
 
-If you keep it all on one domain behind a reverse proxy you can skip the env var, but for drag-drop deploys you typically point the frontend at the Render backend URL.
+### Frontend → Netlify (drag-and-drop)
+
+1. Run `npm run build` locally. This creates `out/`.
+2. Drag the `out/` folder onto https://app.netlify.com/drop.
+3. In the Netlify site dashboard, add this Environment Variable:
+   - `NEXT_PUBLIC_VEHICLE_API = https://<your-render-backend-url>`.
+4. Redeploy / the site restarts with that variable.
+
+Important: for drag-drop deploys you cannot bake the Render backend URL at build time easily. Set `NEXT_PUBLIC_VEHICLE_API` in the platform dashboard and redeploy so the build picks it up. If you ever want the URL to be fixed at build time, run `NEXT_PUBLIC_VEHICLE_API=https://<your-render-backend-url> npm run build` and then drag that new `out/` to the platform.
+
+### Git
+
+Pushed to `https://github.com/teamstark-pro/mishra-transport` on branch `main`.
+
+The repo is kept clean:
+- No virtualenv (`backend/venv/`) committed.
+- No cache or artifacts (`backend/__pycache__/`, `backend/requests`, `out-vercel/`, `out-netlify/`) committed.
+- Environment files (`.env*`) are gitignored — set secrets on the platform dashboards instead.
 
 ### Git
 
