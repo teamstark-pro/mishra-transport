@@ -34,7 +34,7 @@ npx serve out
 ```bash
 cd backend
 pip install -r requirements.txt
-python vehicle_api.py          # or gunicorn vehicle_api:app
+python vehicle_api.py          # or gunicorn vehicle_api:app --bind 0.0.0.0:$PORT
 ```
 
 The backend listens on `PORT` (Render sets this). Default listens on `0.0.0.0:$PORT`.
@@ -43,10 +43,11 @@ The backend listens on `PORT` (Render sets this). Default listens on `0.0.0.0:$P
 
 ### Backend → Render
 
-1. Push this repo to GitHub.
+1. Push this repo to `teamstark-pro/mishra-transport` on GitHub.
 2. On Render, create a **New → Web Service**, connect the repo, and use:
    - **Build Command:** `cd backend && pip install -r requirements.txt`
    - **Start Command:** `cd backend && gunicorn vehicle_api:app --bind 0.0.0.0:$PORT`
+   - Or drop the `render.yaml` into the repo root and Render will pick it up.
 3. Set these **Environment Variables** on Render:
    - `FLASK_ENV = production`
    - `CACHE_FILE = /tmp/vehicle_cache.json`
@@ -63,6 +64,15 @@ The backend listens on `PORT` (Render sets this). Default listens on `0.0.0.0:$P
 3. If you want the frontend to talk to the Render backend, set the environment variable on that platform’s dashboard before dropping, or build with `NEXT_PUBLIC_VEHICLE_API` pointing at the Render backend URL.
 
 If you keep it all on one domain behind a reverse proxy you can skip the env var, but for drag-drop deploys you typically point the frontend at the Render backend URL.
+
+### Git
+
+Pushed to `https://github.com/teamstark-pro/mishra-transport` on branch `main`.
+
+The repo is kept clean:
+- No virtualenv (`backend/venv/`) committed.
+- No cache or artifacts (`backend/__pycache__/`, `backend/requests`, `out-vercel/`, `out-netlify/`) committed.
+- Environment files (`.env*`) are gitignored — set secrets on the platform dashboards instead.
 
 ## Environment variables
 
@@ -87,10 +97,11 @@ If you keep it all on one domain behind a reverse proxy you can skip the env var
 
 - `app/` — Next.js frontend (App Router), statically exported.
 - `backend/vehicle_api.py` — Flask backend: Chola/Vahan lookup + cache/MongoDB-ready storage.
-- `backend/requirements.txt` — Python deps.
-- `render.yaml` — Render service definition (backend).
+- `backend/requirements.txt` — Python deps (flask, flask-cors, requests, beautifulsoup4, urllib3, gunicorn).
+- `render.yaml` — Render service definition (backend web service).
 - `Procfile` — process declaration for Render (`gunicorn vehicle_api:app`).
-- `out/` — built static frontend (after `npm run build`).
+- `out/` — built static frontend (after `npm run build`; gitignored).
+- `out-vercel/` and `out-netlify/` — local copies of the static export for drag-drop (gitignored).
 
 ## Notes
 
