@@ -247,7 +247,7 @@ def fetch_vehicle_profile(vehicle_number):
         r = requests.get(
             f"{VEHICLE_API_URL}/api/fetch",
             params={"vehicle_number": vehicle_number},
-            timeout=90,
+            timeout=65,  # the Vercel function is capped at 60s (maxDuration)
         )
         if r.status_code != 200:
             raise Exception(f"vehicle_api returned HTTP {r.status_code}: {r.text[:120]}")
@@ -310,7 +310,7 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
     for attempt in range(2):
         try:
             time.sleep(1)
-            r1 = session.get(HOMEPAGE_URL, timeout=30)
+            r1 = session.get(HOMEPAGE_URL, timeout=15)
             if r1.status_code != 200:
                 continue
             viewstate = extract_viewstate(r1.text)
@@ -328,7 +328,7 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'homepageformid': 'homepageformid',
                 'fit_c_office_to_input': '1',
                 'javax.faces.ViewState': viewstate,
-            }, headers=ajax_headers, timeout=30)
+            }, headers=ajax_headers, timeout=15)
             viewstate = extract_viewstate_from_ajax(r2.text) or viewstate
 
             r3 = session.post(HOMEPAGE_BASE, data={
@@ -340,7 +340,7 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'homepageformid': 'homepageformid',
                 f'{checkbox_id}_input': 'on',
                 'javax.faces.ViewState': viewstate,
-            }, headers=ajax_headers, timeout=30)
+            }, headers=ajax_headers, timeout=15)
             viewstate = extract_viewstate_from_ajax(r3.text) or viewstate
 
             r4 = session.post(HOMEPAGE_BASE, data={
@@ -351,7 +351,7 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'homepageformid': 'homepageformid',
                 f'{checkbox_id}_input': 'on',
                 'javax.faces.ViewState': viewstate,
-            }, headers=ajax_headers, timeout=30)
+            }, headers=ajax_headers, timeout=15)
             viewstate = extract_viewstate_from_ajax(r4.text) or viewstate
 
             dialog_match = re.search(r'id="(j_idt\d+)"[^>]*class="[^"]*ui-button', r4.text)
@@ -364,10 +364,10 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'homepageformid': 'homepageformid',
                 f'{checkbox_id}_input': 'on',
                 'javax.faces.ViewState': viewstate,
-            }, headers=ajax_headers, timeout=30)
+            }, headers=ajax_headers, timeout=15)
             viewstate = extract_viewstate_from_ajax(r5.text) or viewstate
 
-            r6 = session.get(LOGIN_URL + "?faces-redirect=true", timeout=30, allow_redirects=True)
+            r6 = session.get(LOGIN_URL + "?faces-redirect=true", timeout=15, allow_redirects=True)
             viewstate = extract_viewstate(r6.text)
             if not viewstate:
                 continue
@@ -380,9 +380,9 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'javax.faces.ViewState': viewstate,
                 'fitbalcTest': 'fitbalcTest',
                 'pur_cd': '86',
-            }, headers={**session.headers, 'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://vahan.parivahan.gov.in', 'Referer': LOGIN_URL + "?faces-redirect=true"}, timeout=30, allow_redirects=True)
+            }, headers={**session.headers, 'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://vahan.parivahan.gov.in', 'Referer': LOGIN_URL + "?faces-redirect=true"}, timeout=15, allow_redirects=True)
 
-            r8 = session.get(FORM_URL, headers={**session.headers, 'Referer': LOGIN_URL + "?faces-redirect=true"}, timeout=30)
+            r8 = session.get(FORM_URL, headers={**session.headers, 'Referer': LOGIN_URL + "?faces-redirect=true"}, timeout=15)
             viewstate = extract_viewstate(r8.text)
             if not viewstate:
                 continue
@@ -398,7 +398,7 @@ def fetch_mobile_number(vehicle_number, chassis_last_5):
                 'balanceFeesFine:tf_reg_no': vehicle_number,
                 'balanceFeesFine:tf_chasis_no': chassis_last_5,
                 'javax.faces.ViewState': viewstate,
-            }, headers=ajax_headers, timeout=30)
+            }, headers=ajax_headers, timeout=15)
 
             text = r9.text
             for pat in [r'id="balanceFeesFine:tf_mobile"[^>]*value="(\d{10})"',
@@ -509,20 +509,8 @@ def fetch_combined_data():
                 if msg and 'too many' not in msg.lower():
                     last_upstream_error = msg
     except Exception as e:
-        print(f"[-] Main route error: {e}")
+        print(f"[-] vehicle_api lookup failed: {e}")
         last_upstream_error = str(e)
-        try:
-            raw_profile = fetch_vehicle_profile(vehicle_number)
-            if raw_profile and 'data' in raw_profile and raw_profile['data']:
-                inner_data = raw_profile['data']
-                master_data = inner_data.get('cholaMasterData', [])
-                registry_details = inner_data.get('result') or inner_data.get('raw_data', {}).get('result', {})
-                full_chassis = registry_details.get("chassis", "").replace(" ", "").upper()
-                if full_chassis:
-                    engine_success = True
-        except Exception as e2:
-            print(f"[-] Retry error: {e2}")
-            last_upstream_error = str(e2)
 
     if not engine_success:
         try:
@@ -539,8 +527,12 @@ def fetch_combined_data():
         return jsonify({"code": 404, "error": msg}), 404
 
     chassis_last_5 = full_chassis[-5:]
-    mobile_profile = fetch_mobile_number(vehicle_number, chassis_last_5)
-    linked_phone = mobile_profile["mobile_number"] if mobile_profile["success"] else "NOT_FOUND"
+    try:
+        mobile_profile = fetch_mobile_number(vehicle_number, chassis_last_5)
+        linked_phone = mobile_profile["mobile_number"] if mobile_profile.get("success") else "NOT_FOUND"
+    except Exception as e:
+        print(f"[-] Parivahan mobile lookup failed: {e}")
+        linked_phone = "NOT_FOUND"
 
     if 'mappings' in registry_details and isinstance(registry_details['mappings'], dict):
         if 'signzyID' in registry_details['mappings']:

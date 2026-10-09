@@ -49,7 +49,7 @@ No environment variables are needed on this project.
 `render.yaml` at the repo root defines the service:
 
 - Build command: `cd backend && pip install -r requirements.txt`
-- Start command: `cd backend && gunicorn vehicle_api:app --bind 0.0.0.0:$PORT`
+- Start command: `cd backend && gunicorn vehicle_api:app --bind 0.0.0.0:$PORT --workers 2 --threads 8 --timeout 120` (concurrent + long-timeout so slow first-time lookups are not killed; existing Render services must set this in the dashboard)
 - Environment: `FLASK_ENV=production`, `VEHICLE_API_URL` (from step 1), optionally `MONGODB_URI`/`MONGODB_DB` (`PORT` is set by Render)
 
 Create it as **New → Web Service**, connect this GitHub repo, and Render picks up `render.yaml`. If the service already exists, just set `VEHICLE_API_URL` in the dashboard and redeploy.
