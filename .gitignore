@@ -1,24 +1,22 @@
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-
-# testing
-/coverage
+node_modules/
 
 # next.js
-/.next/
-/out/
-
-# production
-/build
+.next/
+out/
+frontend/build/
 
 # environment (real secrets never committed)
 .env
-.env.local
 .env.*
 !.env.example
 !.env.local.example
+
+# backend — never commit a Python virtualenv or its cache
+venv/
+__pycache__/
+*.pyc
+backend/requests/
 
 # vercel / netlify
 .vercel
@@ -28,15 +26,9 @@
 *.tsbuildinfo
 next-env.d.ts
 
-# backend — never commit a Python virtualenv or its cache
-backend/venv
-backend/__pycache__
-backend/**/__pycache__
-backend/requests
-
-# local static export drop folders (build locally, drag separately)
-out-vercel/
-out-netlify/
+# local agent runtime state (kept out of git)
+.agents/
+scripts/
 
 # misc
 .DS_Store
