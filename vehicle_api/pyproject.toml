@@ -1,5 +1,18 @@
+[project]
+name = "vehicle-api"
+version = "1.0.0"
+description = "Chola vehicle lookup relay for Mishra Transport (called by the Render backend)"
+requires-python = ">=3.12"
+dependencies = [
+    "flask",
+    "requests",
+]
+
+# App-only project — never built/packaged as a wheel.
+[tool.uv]
+package = false
+
 # Vercel Python/Flask config — pins the app entrypoint so the build does not
-# have to guess (it previously found two Flask `app` exports and failed with
-# "No Flask entrypoint found").
+# have to guess between Flask `app` exports.
 [tool.vercel]
 entrypoint = "api.index:app"
