@@ -6,8 +6,9 @@ No fake data. Every number on screen is either entered by the agency or returned
 
 ## Repo layout
 
-- `backend/` — Python/Flask API that does the Chola/Vahan vehicle lookup and caches results. Deployed on **Render**.
+- `backend/` — Python/Flask API that orchestrates the lookups and caches results. Deployed on **Render**.
 - `frontend/` — Next.js app (static export). Deployed on **Vercel**.
+- `vehicle_api/` — Serverless Chola relay (Vercel functions, **Mumbai region**). Chola blocks US datacenter IPs, so the Render backend routes all Chola traffic through this service. Deployed on **Vercel** as a separate project.
 
 ## Run locally
 
@@ -28,33 +29,51 @@ pip install -r requirements.txt
 PORT=5001 python vehicle_api.py    # matches the frontend's default local API URL
 ```
 
+Locally (unblocked IP) the backend talks to Chola directly — no `VEHICLE_API_URL` needed.
+
 ## Deploy
 
-### Backend → Render
+### 1. vehicle_api → Vercel (Mumbai region) — do this first
+
+Chola (`digital.cholainsurance.com`) rejects requests from US datacenter IPs with **HTTP 406**, so the token login fails on Render ("Token refresh failed") even though the same code works from an Indian/residential connection. The `vehicle_api/` folder is a tiny serverless relay that runs on Vercel's **Mumbai (bom1)** region and forwards Chola lookups from an Indian IP.
+
+1. On Vercel: **Add New → Project**, import this GitHub repo.
+2. Set **Root Directory** to `vehicle_api`.
+3. Deploy. The region is pinned to Mumbai in `vehicle_api/vercel.json`, but verify after the first deploy: **Settings → Functions → Function Region = Mumbai**.
+4. Sanity check: open `https://<vehicle-api>.vercel.app/api/token` — `{"ok": true}` means Chola accepts the Mumbai IP. If you see an HTTP 406 error, the region is wrong.
+
+No environment variables are needed on this project.
+
+### 2. Backend → Render
 
 `render.yaml` at the repo root defines the service:
 
 - Build command: `cd backend && pip install -r requirements.txt`
 - Start command: `cd backend && gunicorn vehicle_api:app --bind 0.0.0.0:$PORT`
-- Environment: `FLASK_ENV=production`, `CACHE_FILE=/tmp/vehicle_cache.json` (`PORT` is set by Render)
+- Environment: `FLASK_ENV=production`, `VEHICLE_API_URL` (from step 1), optionally `MONGODB_URI`/`MONGODB_DB` (`PORT` is set by Render)
 
-Create it as **New → Web Service**, connect this GitHub repo, and Render picks up `render.yaml`. If the service already exists with these commands, nothing changes on redeploy.
+Create it as **New → Web Service**, connect this GitHub repo, and Render picks up `render.yaml`. If the service already exists, just set `VEHICLE_API_URL` in the dashboard and redeploy.
 
-### Frontend → Vercel
+After redeploy, open `https://<backend>/token` — `{"vehicle_api": {"ok": true}}` confirms the relay works.
 
-1. Import this GitHub repo as a new project on Vercel.
+### 3. Frontend → Vercel
+
+1. Import this GitHub repo as a **second, separate** Vercel project.
 2. Set **Root Directory** to `frontend`.
-3. Add the environment variable `NEXT_PUBLIC_VEHICLE_API=https://<your-render-backend-url>` (e.g. `https://mishra-transport-backend.onrender.com`) **before** the first deploy — the value is baked in at build time.
+3. Add the environment variable `NEXT_PUBLIC_VEHICLE_API=https://<your-render-backend-url>` (e.g. `https://mishra-transport.onrender.com`) **before** the first deploy — the value is baked in at build time.
 4. Deploy. Vercel runs `npm run build`, which static-exports the site to `out/`.
 
 ## Environment variables
 
 | Variable | Where | Value |
 |---|---|---|
-| `NEXT_PUBLIC_VEHICLE_API` | Vercel (frontend) · `frontend/.env.local` (local) | Base URL of the backend. `http://localhost:5001` locally, `https://mishra-transport-backend.onrender.com` in production. |
+| `NEXT_PUBLIC_VEHICLE_API` | Vercel (frontend) · `frontend/.env.local` (local) | Base URL of the backend. `http://localhost:5001` locally, `https://mishra-transport.onrender.com` in production. |
 | `PORT` | Render (backend) | Set automatically by Render. Locally, run the backend with `PORT=5001` to match the frontend default. |
 | `FLASK_ENV` | Render (backend) | `production` |
-| `CACHE_FILE` | Render (backend) | `/tmp/vehicle_cache.json` — where the backend keeps its lookup cache. |
+| `CACHE_FILE` | Render (backend) | `/tmp/vehicle_cache.json` — fallback cache file when MongoDB is not configured. |
+| `VEHICLE_API_URL` | Render (backend) | **Required on Render.** URL of the vehicle_api project on Vercel (Mumbai region), e.g. `https://mishra-transport-vehicle-api.vercel.app`. Routes all Chola traffic around the datacenter-IP block. Unset → direct Chola calls (local dev). |
+| `MONGODB_URI` | Render (backend) | Optional. MongoDB (Atlas) connection string for a persistent lookup cache that survives redeploys. Unset → file cache. |
+| `MONGODB_DB` | Render (backend) | Optional. Database name for the MongoDB cache. Defaults to `mishra_transport`. |
 
 Secrets belong in the Render/Vercel dashboards, never in git. All `.env*` files are gitignored; only the `*.example` files are committed.
 
@@ -62,6 +81,6 @@ Secrets belong in the Render/Vercel dashboards, never in git. All `.env*` files 
 
 1. The agency enters a vehicle number on the frontend.
 2. The frontend calls the backend `/fetch?vehicle_number=…`.
-3. The backend checks its JSON cache (`CACHE_FILE`).
-4. If not cached, the backend calls Chola (with a secondary chassis lookup as fallback), then Vahan for the linked mobile number, caches the result and returns the enriched data.
+3. The backend checks its cache (MongoDB when `MONGODB_URI` is set, otherwise the JSON file cache).
+4. If not cached, the backend asks the vehicle_api (Vercel, Mumbai) for the Chola vehicle profile — with a secondary chassis lookup as fallback — then Vahan for the linked mobile number, caches the result and returns the enriched data.
 5. The frontend displays insurer, policy number, chassis, expiry and linked mobile from that real response. Nothing is invented.

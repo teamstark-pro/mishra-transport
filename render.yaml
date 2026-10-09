@@ -11,3 +11,9 @@ services:
         value: production
       - key: CACHE_FILE
         value: /tmp/vehicle_cache.json
+      - key: VEHICLE_API_URL
+        sync: false  # set in the dashboard: URL of the vehicle_api project on Vercel (Mumbai)
+      - key: MONGODB_URI
+        sync: false  # optional: MongoDB Atlas connection string for a persistent cache
+      - key: MONGODB_DB
+        value: mishra_transport

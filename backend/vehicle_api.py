@@ -33,6 +33,18 @@ BASE_HEADERS = {
 CHOLA_API_URL = "https://digital.cholainsurance.com/api/v1/masterdata/vehicle_class_validation"
 CHASSIS_API_URL = "https://vehicle2chassis.profilework239.workers.dev/?plate={}"
 
+# Chola (digital.cholainsurance.com) returns HTTP 406 to US datacenter IPs, so this
+# backend (Render, US) cannot call it directly. VEHICLE_API_URL points at the Vercel
+# vehicle_api deployed from the vehicle_api/ folder in the MUMBAI region, which relays
+# all Chola lookups from an Indian IP. When unset, this backend calls Chola directly
+# (local development from an unblocked IP).
+VEHICLE_API_URL = os.environ.get("VEHICLE_API_URL", "").rstrip("/")
+
+# Optional persistent cache. When MONGODB_URI is set (e.g. MongoDB Atlas), lookups
+# are cached in MongoDB instead of the ephemeral /tmp file. Unset -> file cache.
+MONGODB_URI = os.environ.get("MONGODB_URI", "")
+MONGODB_DB = os.environ.get("MONGODB_DB", "mishra_transport")
+
 HOMEPAGE_URL = "https://vahan.parivahan.gov.in/vahanservice/vahan/ui/statevalidation/homepage.xhtml?statecd=Mzc2MzM2MzAzNjY0MzIzODM3NjIzNjY0MzY2MjM3NDQ0Yw=="
 HOMEPAGE_BASE = "https://vahan.parivahan.gov.in/vahanservice/vahan/ui/statevalidation/homepage.xhtml"
 LOGIN_URL = "https://vahan.parivahan.gov.in/vahanservice/vahan/ui/usermgmt/login.xhtml"
@@ -59,11 +71,42 @@ def save_cache(cache):
         pass
 
 
+_MONGO_COLL = None
+
+
+def _mongo_collection():
+    """Lazily connect to MongoDB when MONGODB_URI is configured."""
+    global _MONGO_COLL
+    if _MONGO_COLL is None:
+        import pymongo  # lazy: only needed when MongoDB is configured
+        client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        _MONGO_COLL = client[MONGODB_DB]["vehicle_cache"]
+    return _MONGO_COLL
+
+
 def get_from_cache(vehicle_number):
+    if MONGODB_URI:
+        try:
+            doc = _mongo_collection().find_one({"_id": vehicle_number})
+            if doc:
+                return {"data": doc["data"], "cached_at": doc["cached_at"]}
+            return None
+        except Exception as e:
+            print(f"[-] MongoDB cache read failed, using file cache: {e}")
     return load_cache().get(vehicle_number)
 
 
 def save_to_cache(vehicle_number, data):
+    if MONGODB_URI:
+        try:
+            _mongo_collection().update_one(
+                {"_id": vehicle_number},
+                {"$set": {"data": data, "cached_at": datetime.now().isoformat()}},
+                upsert=True,
+            )
+            return
+        except Exception as e:
+            print(f"[-] MongoDB cache write failed, using file cache: {e}")
     cache = load_cache()
     cache[vehicle_number] = {"data": data, "cached_at": datetime.now().isoformat()}
     save_cache(cache)
@@ -191,6 +234,32 @@ def fetch_chola_raw(vehicle_number, source, max_attempts=3):
         return data
 
     raise Exception(f"Chola rate-limited after {max_attempts} attempts")
+
+
+def fetch_vehicle_profile(vehicle_number):
+    """Chola vehicle profile for a vehicle number.
+
+    Via the Vercel vehicle_api (Mumbai region) when VEHICLE_API_URL is set —
+    Chola blocks this host's US IP with HTTP 406 — or direct to Chola
+    otherwise (local development).
+    """
+    if VEHICLE_API_URL:
+        r = requests.get(
+            f"{VEHICLE_API_URL}/api/fetch",
+            params={"vehicle_number": vehicle_number},
+            timeout=90,
+        )
+        if r.status_code != 200:
+            raise Exception(f"vehicle_api returned HTTP {r.status_code}: {r.text[:120]}")
+        return r.json()
+
+    bike_res = fetch_chola_raw(vehicle_number, 'bike')
+    inner = bike_res.get('data')
+    bike_txt = inner.get('txt') if isinstance(inner, dict) else None
+    bike_txt = bike_txt or bike_res.get('txt') or ''
+    if bike_res.get('status') == -1 or "not an two wheeler" in bike_txt.lower():
+        return fetch_chola_raw(vehicle_number, 'car')
+    return bike_res
 
 
 # ==================== PARIVAHAN ====================
@@ -358,6 +427,8 @@ def home():
     return jsonify({
         "status": "ok",
         "service": "v2num",
+        "vehicle_api": VEHICLE_API_URL or "direct",
+        "cache": "mongodb" if MONGODB_URI else "file",
         "token_ready": bool(CURRENT_TOKEN),
         "token_last_error": LAST_TOKEN_ERROR or None,
     })
@@ -365,7 +436,17 @@ def home():
 
 @app.route("/token")
 def token_debug():
-    """Diagnostics: verifies the Chola login works from this host."""
+    """Diagnostics: verifies the upstream Chola path works from this host."""
+    if VEHICLE_API_URL:
+        try:
+            r = requests.get(f"{VEHICLE_API_URL}/api/token", timeout=60)
+            try:
+                body = r.json()
+            except ValueError:
+                body = {"ok": False, "error": f"non-JSON response (HTTP {r.status_code}): {r.text[:120]}"}
+            return jsonify({"vehicle_api": body}), (200 if r.status_code == 200 else 502)
+        except Exception as e:
+            return jsonify({"vehicle_api": {"ok": False, "error": str(e)}}), 502
     try:
         get_valid_token()
         return jsonify({"ok": True, "token_age_seconds": int(time.time() - LAST_TOKEN_FETCH)})
@@ -410,18 +491,8 @@ def fetch_combined_data():
     engine_success = False
     last_upstream_error = None
 
-    def inner_txt(d):
-        inner = d.get('data')
-        if isinstance(inner, dict):
-            return inner.get('txt') or d.get('txt') or ''
-        return d.get('txt') or ''
-
     try:
-        bike_res = fetch_chola_raw(vehicle_number, 'bike')
-        if bike_res.get('status') == -1 or "not an two wheeler" in inner_txt(bike_res).lower():
-            raw_profile = fetch_chola_raw(vehicle_number, 'car')
-        else:
-            raw_profile = bike_res
+        raw_profile = fetch_vehicle_profile(vehicle_number)
 
         if raw_profile and 'data' in raw_profile and raw_profile['data']:
             inner_data = raw_profile['data']
@@ -441,7 +512,7 @@ def fetch_combined_data():
         print(f"[-] Main route error: {e}")
         last_upstream_error = str(e)
         try:
-            raw_profile = fetch_chola_raw(vehicle_number, 'car')
+            raw_profile = fetch_vehicle_profile(vehicle_number)
             if raw_profile and 'data' in raw_profile and raw_profile['data']:
                 inner_data = raw_profile['data']
                 master_data = inner_data.get('cholaMasterData', [])
@@ -450,7 +521,7 @@ def fetch_combined_data():
                 if full_chassis:
                     engine_success = True
         except Exception as e2:
-            print(f"[-] Car retry error: {e2}")
+            print(f"[-] Retry error: {e2}")
             last_upstream_error = str(e2)
 
     if not engine_success:

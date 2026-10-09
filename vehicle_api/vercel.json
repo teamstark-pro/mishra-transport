@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/fetch.py": { "maxDuration": 60, "includeFiles": "api/chola.py" },
+    "api/token_check.py": { "maxDuration": 60, "includeFiles": "api/chola.py" }
+  },
+  "rewrites": [
+    { "source": "/api/token", "destination": "/api/token_check" }
+  ],
+  "regions": ["bom1"]
+}
