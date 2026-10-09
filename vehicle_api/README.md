@@ -9,12 +9,13 @@ The Render backend calls this service (env var `VEHICLE_API_URL`) instead of
 talking to Chola directly.
 
 Single Flask app in `api/index.py` (Vercel auto-detects Flask; the entrypoint
-is pinned in `pyproject.toml`). `api/chola.py` holds the shared login/lookup
-logic. No environment variables needed.
+is pinned in `pyproject.toml`). `api/chola.py` holds the login/lookup logic and
+`api/parivahan.py` the Vahan linked-mobile lookup (hard-capped at 35s). No
+environment variables needed.
 
 ## Endpoints
 
-- `GET /api/fetch?vehicle_number=UP43BA2007` — raw Chola profile (bike→car fallback included)
+- `GET /api/fetch?vehicle_number=UP43BA2007` — raw Chola profile (bike→car fallback included) plus a best-effort `parivahan_mobile` (linked mobile) lookup from the same Indian IP
 - `GET /api/token` — diagnostics: `{"ok": true, ...}` or the exact Chola failure
 
 ## Deploy (Vercel, ~3 minutes)

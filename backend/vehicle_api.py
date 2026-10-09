@@ -491,6 +491,7 @@ def fetch_combined_data():
     engine_success = False
     last_upstream_error = None
 
+    raw_profile = None
     try:
         raw_profile = fetch_vehicle_profile(vehicle_number)
 
@@ -512,6 +513,10 @@ def fetch_combined_data():
         print(f"[-] vehicle_api lookup failed: {e}")
         last_upstream_error = str(e)
 
+    # relay responses carry the parivahan mobile lookup done from an Indian IP;
+    # direct (local-dev) Chola responses do not have the key
+    relay_mobile = raw_profile.get("parivahan_mobile") if isinstance(raw_profile, dict) else None
+
     if not engine_success:
         try:
             resp = requests.get(CHASSIS_API_URL.format(vehicle_number), timeout=20)
@@ -527,12 +532,15 @@ def fetch_combined_data():
         return jsonify({"code": 404, "error": msg}), 404
 
     chassis_last_5 = full_chassis[-5:]
-    try:
-        mobile_profile = fetch_mobile_number(vehicle_number, chassis_last_5)
-        linked_phone = mobile_profile["mobile_number"] if mobile_profile.get("success") else "NOT_FOUND"
-    except Exception as e:
-        print(f"[-] Parivahan mobile lookup failed: {e}")
-        linked_phone = "NOT_FOUND"
+    if isinstance(relay_mobile, dict):
+        linked_phone = relay_mobile.get("mobile_number") if relay_mobile.get("success") else "NOT_FOUND"
+    else:
+        try:
+            mobile_profile = fetch_mobile_number(vehicle_number, chassis_last_5)
+            linked_phone = mobile_profile["mobile_number"] if mobile_profile.get("success") else "NOT_FOUND"
+        except Exception as e:
+            print(f"[-] Parivahan mobile lookup failed: {e}")
+            linked_phone = "NOT_FOUND"
 
     if 'mappings' in registry_details and isinstance(registry_details['mappings'], dict):
         if 'signzyID' in registry_details['mappings']:

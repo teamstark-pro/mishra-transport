@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "flask",
     "requests",
+    "beautifulsoup4",
 ]
 
 # App-only project — never built/packaged as a wheel.

@@ -82,5 +82,5 @@ Secrets belong in the Render/Vercel dashboards, never in git. All `.env*` files 
 1. The agency enters a vehicle number on the frontend.
 2. The frontend calls the backend `/fetch?vehicle_number=…`.
 3. The backend checks its cache (MongoDB when `MONGODB_URI` is set, otherwise the JSON file cache).
-4. If not cached, the backend asks the vehicle_api (Vercel, Mumbai) for the Chola vehicle profile — with a secondary chassis lookup as fallback — then Vahan for the linked mobile number, caches the result and returns the enriched data.
+4. If not cached, the backend asks the vehicle_api (Vercel, Mumbai) for the Chola vehicle profile **and** the Vahan linked mobile number — with a secondary chassis lookup as fallback — caches the result and returns the enriched data.
 5. The frontend displays insurer, policy number, chassis, expiry and linked mobile from that real response. Nothing is invented.
