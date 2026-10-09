@@ -1,0 +1,5 @@
+# Vercel Python/Flask config — pins the app entrypoint so the build does not
+# have to guess (it previously found two Flask `app` exports and failed with
+# "No Flask entrypoint found").
+[tool.vercel]
+entrypoint = "api.index:app"
